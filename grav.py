@@ -10,10 +10,8 @@ import itertools
 
 class Universe:
     def __init__(self, size=np.array([100, 100]), count=5, over=False, dt=0.1, tol=False, con=1, seed=False):
-
         self.count = count
         self.size = size
-        self.bounds = np.array([[0, 0], [size[0], 0], [size[0], size[1]], [0, size[1]]])
         self.m = np.zeros(self.count)
         self.r = np.zeros(self.count)
         self.labels = []
@@ -24,7 +22,7 @@ class Universe:
 
         self.dt = dt
         self.elapsed_time = 0
-
+        self.step_count = 0
         self.init_state = np.zeros([self.count, 6])
         self.state = self.init_state.copy()
 
@@ -205,6 +203,8 @@ class Universe:
             self.state[j, 4:6] = p1 - np.array([math.cos(angle), math.sin(angle)]) * p
 
     def update(self):
+        if self.step_count % 1000 == 0:
+            print("Elapsed time = %d" % self.elapsed_time)
         for n, i in enumerate(self.state):
             m_o = self.m[n]
             ux = i[0]
@@ -224,8 +224,13 @@ class Universe:
 
             self.state[n, :4] = [ux_n, uy_n, vx_n, vy_n]
 
+            if self.step_count % 100 == 0:
+                print(n,m_o, vx, vy)
+
     def step(self):
-        self.elapsed_time = +self.dt
+        self.elapsed_time += self.dt
+        self.step_count += 1
+
         Galaxy.update()
         # self.state[0] = [0,0,0,0,0,0]
         # self.m[0] = 1000
