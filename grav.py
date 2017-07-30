@@ -91,8 +91,8 @@ class Universe:
             x = (rnd.randint(1000, 9001) / 10000) * self.size[0]
             y = (rnd.randint(1000, 9001) / 10000) * self.size[1]
 
-            v_x = (rnd.randint(0, 10001) / 1000 - 5) * self.size[0] / 1000
-            v_y = (rnd.randint(0, 10001) / 1000 - 5) * self.size[1] / 1000
+            v_x = 0 # (rnd.randint(0, 10001) / 1000 - 5) * self.size[0] / 1000
+            v_y = 0 # (rnd.randint(0, 10001) / 1000 - 5) * self.size[1] / 1000
 
             self.labels.append(label)
             self.type.append(obj_type)
@@ -224,7 +224,7 @@ class Universe:
 
             self.state[n, :4] = [ux_n, uy_n, vx_n, vy_n]
 
-            if self.step_count % 100 == 0:
+            if self.step_count % 1000 == 0:
                 print(n,m_o, vx, vy)
 
     def step(self):
@@ -265,7 +265,7 @@ class Universe:
     def state_sum(self, tag):
         pass
 
-Galaxy = Universe(count=25, size=np.array([1500, 1500]), con=100, dt=0.1, tol=15, over=False)
+Galaxy = Universe(count=40, size=np.array([15000, 15000]), con=1000, dt=0.1, tol=50, over=False)
 
 
 fig = plt.figure()
