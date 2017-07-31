@@ -1,44 +1,57 @@
 import numpy as np
 import numpy.linalg as npl
-import math
+import math, itertools
 from scipy.spatial.distance import pdist, squareform
 import random as rnd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import itertools
 
 
 class Universe:
     def __init__(self, size=np.array([100, 100]), count=5, over=False, dt=0.1, tol=False, con=1, seed=False):
+
         self.count = count
         self.size = size
+        self.tol = tol
+        self.constant = con
+        self.dt = dt
+
         self.m = np.zeros(self.count)
         self.r = np.zeros(self.count)
         self.labels = []
         self.type = []
-
-        self.tol = tol
-        self.constant = con
-
-        self.dt = dt
         self.elapsed_time = 0
         self.step_count = 0
-        self.init_state = np.zeros([self.count, 6])
+        self.init_state = np.zeros([self.count, 6]) # UX, UY, VX, VY, FX, FY
+        self.init_system_state = np.zeros(7)  # Momentum-X, Momentum-Y, Total Energy,
+                                         # Total Mechanical Energy, Potential Energy, Kinetic Energy, Waste
+
         self.state = self.init_state.copy()
+        self.system_state = self.init_system_state.copy()
+        file = open("system_out.txt", "w")
+        file.close()
 
         if not over:
             self.obj_generator(seed)
         else:
             self.state_overwrite()
 
-        self.plot_uni("random_state")
-        np.savetxt("random.out", self.m)
         self.pos_check()
         self.force()
+        for n, i in enumerate(self.state):
+            m_o = self.m[n]
+            vx = i[2]
+            vy = i[3]
+            self.system_state[4] += m_o * (math.sqrt(vx * vx + vy * vy))
+            self.system_state[0] += m_o * vx
+            self.system_state[1] += m_o * vy
+
+        self.system_state[2] = self.system_state[4] + self.system_state[5]
+        self.system_state[3] = self.system_state[2]
+
         self.init_state = self.state.copy()
-        np.savetxt("init.out", self.m)
-        self.state_sum("initial_state")
-        self.plot_uni("initial_state")
+        self.init_system_state = self.system_state.copy()
+        self.state_sum()
 
     def state_overwrite(self):
         file = open("input.txt", "r")
@@ -91,8 +104,8 @@ class Universe:
             x = (rnd.randint(1000, 9001) / 10000) * self.size[0]
             y = (rnd.randint(1000, 9001) / 10000) * self.size[1]
 
-            v_x = 0 # (rnd.randint(0, 10001) / 1000 - 5) * self.size[0] / 1000
-            v_y = 0 # (rnd.randint(0, 10001) / 1000 - 5) * self.size[1] / 1000
+            v_x = 0  # (rnd.randint(0, 10001) / 1000 - 5) * self.size[0] / 1000
+            v_y = 0  # (rnd.randint(0, 10001) / 1000 - 5) * self.size[1] / 1000
 
             self.labels.append(label)
             self.type.append(obj_type)
@@ -131,8 +144,6 @@ class Universe:
                 unew = u0
                 vnew = (m0 * v0 + m1 * v1) / mnew
                 lnew = l0 + l1
-
-
 
                 self.state[i, :2] = unew
                 self.state[i, 2:4] = vnew
@@ -186,35 +197,36 @@ class Universe:
             i, j = w
             m0 = self.m[i]
             u0 = self.state[i, :2]
-            p0 = self.state[i, 4:6]
+            f0 = self.state[i, 4:6]
 
             m1 = self.m[j]
             u1 = self.state[j, :2]
-            p1 = self.state[j, 4:6]
+            f1 = self.state[j, 4:6]
 
             du = u1 - u0
             d = npl.norm(du)
-            p = self.constant * m0 * m1 / d / d
+            f = self.constant * m0 * m1 / d / d
+            self.system_state[4] += m0 * m1 / d
             angle = math.atan2(du[1], du[0])
             while angle < 0.0:
                 angle += math.pi * 2
 
-            self.state[i, 4:6] = p0 + np.array([math.cos(angle), math.sin(angle)]) * p
-            self.state[j, 4:6] = p1 - np.array([math.cos(angle), math.sin(angle)]) * p
+            self.state[i, 4:6] = f0 + np.array([math.cos(angle), math.sin(angle)]) * f
+            self.state[j, 4:6] = f1 - np.array([math.cos(angle), math.sin(angle)]) * f
 
     def update(self):
         if self.step_count % 1000 == 0:
-            print("Elapsed time = %d" % self.elapsed_time)
+            print("Elapsed time = %.3f" % round(self.elapsed_time,4))
         for n, i in enumerate(self.state):
             m_o = self.m[n]
             ux = i[0]
             uy = i[1]
             vx = i[2]
             vy = i[3]
-            px = i[4]
-            py = i[5]
-            a_x = px / m_o
-            a_y = py / m_o
+            fx = i[4]
+            fy = i[5]
+            a_x = fx / m_o
+            a_y = fy / m_o
 
             vx_n = vx + self.dt * a_x
             vy_n = vy + self.dt * a_y
@@ -223,20 +235,20 @@ class Universe:
             uy_n = uy + self.dt * vy + self.dt * self.dt * a_y / 2
 
             self.state[n, :4] = [ux_n, uy_n, vx_n, vy_n]
-
-            if self.step_count % 1000 == 0:
-                print(n,m_o, vx, vy)
+            self.system_state[4] += m_o * (math.sqrt(vx * vx + vy * vy))
+            self.system_state[0] += m_o * vx
+            self.system_state[1] += m_o * vy
 
     def step(self):
         self.elapsed_time += self.dt
         self.step_count += 1
-
-        Galaxy.update()
+        self.update()
         # self.state[0] = [0,0,0,0,0,0]
         # self.m[0] = 1000
-        Galaxy.force()
-        Galaxy.pos_check()
-        Galaxy.force()
+        self.force()
+        self.pos_check()
+        self.force()
+        self.state_sum()
 
     def plot_uni(self, file_name="fig"):
         fig = plt.figure(figsize=(15, 15), )
@@ -261,18 +273,22 @@ class Universe:
         plt.savefig(file_name)
         plt.close()
 
+    def state_sum(self):
+        self.system_state[3] = self.system_state[4] + self.system_state[5]
+        self.system_state[6] = self.system_state[2] - self.system_state[3]
+        # file_sys = open("system_out.txt","a")
+        # file_sys.write("\nElapse time = " + str(round(self.elapsed_time,2)) + "---")
+        # np.savetxt("system_out.txt", np.array(map(str,self.system_state)), delimiter=",", newline=" ")
 
-    def state_sum(self, tag):
-        pass
+        # file_sys.close()
 
-Galaxy = Universe(count=40, size=np.array([15000, 15000]), con=1000, dt=0.1, tol=50, over=False)
-
+Galaxy = Universe(count=40, size=np.array([1500, 1500]), con=50, dt=0.1, tol=15, over=False)
 
 fig = plt.figure()
 fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
 ax = fig.add_subplot(111, aspect='equal', autoscale_on=False, fc="black",
-                     xlim=(-0.1*Galaxy.size[0], 1.1 * Galaxy.size[0]),
-                     ylim=(-0.1*Galaxy.size[1], 1.1 * Galaxy.size[1]))
+                     xlim=(-0.1 * Galaxy.size[0], 1.1 * Galaxy.size[0]),
+                     ylim=(-0.1 * Galaxy.size[1], 1.1 * Galaxy.size[1]))
 
 rect = plt.Rectangle([0, 0],
                      Galaxy.size[0],
@@ -282,6 +298,7 @@ rect = plt.Rectangle([0, 0],
 planets, = ax.plot([], [], 'bo', ms=2)
 
 ax.add_patch(rect)
+
 
 def animate(i):
     Galaxy.step()
